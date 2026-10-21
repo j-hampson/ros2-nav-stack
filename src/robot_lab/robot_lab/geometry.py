@@ -62,3 +62,14 @@ def corridor_min(scan, lookahead, half_width):
             if best_x is None or x < best_x:
                 best, best_x = Reading(r, bearing), x
     return best
+
+
+def quaternion_from_yaw(yaw):
+    """Build a geometry_msgs-style (x, y, z, w) quaternion for a Z rotation.
+
+    The inverse of yaw_from_quaternion. A ground robot only rotates about Z,
+    so the x and y components are always zero and the pair reduces to
+    (sin(yaw/2), cos(yaw/2)) -- note the HALF angle, which is the usual
+    stumbling block. A yaw of 0 therefore gives (0, 0, 0, 1), the identity.
+    """
+    return (0.0, 0.0, math.sin(yaw / 2.0), math.cos(yaw / 2.0))
