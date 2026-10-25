@@ -1,27 +1,4 @@
-"""Drive a list of waypoints by asking Nav2 to navigate to each in turn.
-
-This is the project's first ACTION client, the third ROS 2 communication
-pattern after topics and services:
-
-  topics    continuous streams, fire and forget, no reply   (/scan, /cmd_vel)
-  services  one request, one reply, returns quickly         (/spawn)
-  actions   long-running task with progress feedback,       (/navigate_to_pose)
-            a final result, and the ability to cancel
-
-"Drive across a room" is the shape actions exist for: it takes tens of seconds,
-you want to watch progress, and you need to be able to give up. Every goal here
-goes through the same server the `ros2 action send_goal` CLI talks to.
-
-Note that this node issues no velocity commands at all. Nav2 plans the route
-and drives; this node only says where to go and reacts to how it went -- unlike
-go_to_goal and avoid_to_goal, which do their own steering.
-
-    ros2 run robot_lab patrol --ros-args \\
-      -p waypoints:="[1.5, 0.0, 3.0, 0.0, 4.0, 1.5, 2.0, 2.5]"
-
-Waypoints are a flat [x1, y1, x2, y2, ...] list in the `frame_id` frame (map by
-default). Requires Nav2 to be running.
-"""
+"""Drive a list of waypoints by asking Nav2 to navigate to each in turn."""
 
 import math
 
@@ -62,8 +39,6 @@ class Patrol(Node):
         self.face_travel = self.get_parameter('face_travel').value
         self.server_timeout = self.get_parameter('server_timeout').value
 
-        # The action client. Unlike a publisher, it needs a server on the other
-        # end before anything can be sent.
         self.client = ActionClient(self, NavigateToPose, 'navigate_to_pose')
 
         self.index = 0
@@ -77,12 +52,7 @@ class Patrol(Node):
             + (' looping' if self.loop else ''))
 
     def start(self):
-        """Block until the action server exists, then send the first goal.
-
-        Safe to block here because main() has not called spin() yet. Blocking
-        like this inside a callback would deadlock -- the executor that
-        delivers the server's reply is the very thing being blocked.
-        """
+        """Block until the action server exists, then send the first goal.        """
         self.get_logger().info('waiting for the navigate_to_pose action server...')
         if not self.client.wait_for_server(timeout_sec=self.server_timeout):
             self.get_logger().error(
@@ -172,8 +142,7 @@ class Patrol(Node):
         self.results.append((self.waypoints[self.index], outcome))
 
     def advance(self):
-        # Carry on after a failure rather than stopping: one unreachable
-        # waypoint should not end the patrol.
+        # Carry on after a failure rather than stopping
         self.index += 1
         self.goal_handle = None
         self.send_next()
