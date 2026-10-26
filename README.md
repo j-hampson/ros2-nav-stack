@@ -35,10 +35,21 @@ Escaping requires driving away from the goal for several meters, which no purely
 Nav2, given the same start and goal, plans a 1.27× detour around the outside and
 arrives at the goal.
 
+![Nav2 planning around the U-trap in RViz](docs/rviz_nav2_plan_u.png)
+
+*Nav2's global plan routing around the outside of the trap, with the costmap inflation shaded around the walls and the AMCL particle
+cloud at the robot. Grey is space the robot has not yet seen.*
+
 ![SLAM map of the U-trap world](docs/map_u_trap.png)
 
 *The U-trap world mapped by SLAM. The trap's interior stays unknown because
 the robot only ever drove around it.*
+
+![Nav2 planning through turtlebot3_world in RViz](docs/rviz_nav2_plan_tb3.png)
+
+*The same stack in `turtlebot3_world`. Every pillar carries an inflation ring
+from the costmap, and the plan threads the gaps between them. The clearance
+that the rings leave is what the `inflation_radius` tuning in step 7 controls.*
 
 ## Debugging
 
@@ -139,7 +150,6 @@ ros2 run robot_lab patrol --ros-args -p use_sim_time:=true -p waypoints:="[5.5, 
 
 ## Environment
 
-WSL2 + WSLg. `export GALLIUM_DRIVER=d3d12` is required in `~/.bashrc`;
-without it Mesa falls back to software rendering and Gazebo crawls. Verify
+WSL2 + WSLg. `export GALLIUM_DRIVER=d3d12` is required in `~/.bashrc`. Verify
 with `glxinfo -B | grep "OpenGL renderer"`, which should name the GPU rather
 than `llvmpipe`.
