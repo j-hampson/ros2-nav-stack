@@ -31,7 +31,6 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'drive_square = robot_lab.drive_square:main',
             'scan_inspector = robot_lab.scan_inspector:main',
             'go_to_goal = robot_lab.go_to_goal:main',
             'avoid_to_goal = robot_lab.avoid_to_goal:main',

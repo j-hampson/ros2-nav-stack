@@ -1,28 +1,101 @@
-# gz_robot_ws
+# Building a Mobile Robot Navigation Stack
 
-ROS 2 Jazzy workspace for Gazebo mobile-robot exercises.
+A ROS 2 Jazzy / Gazebo Harmonic project that starts with a hand-written
+proportional controller and uses Nav2 to solve problems that the controller cannot.
+
+![Actual and SLAM map of turtlebot3_world](docs/tb3_combined.png)
+
+*`turtlebot3_world` and the map of the world built by driving the robot around it using 360 lidar rays at 5 cm resolution.*
+
+## Project Progression
+
+| Step | Additions |
+|---|---|
+| 1 | `scan_inspector` — read-only lidar diagnostics |
+| 2 | `go_to_goal` — proportional control to (x, y) coordinates |
+| 3 | `avoid_to_goal` — travels to goal with reactive avoidance |
+| 4 | Nav2 with a prebuilt map for global planning |
+| 5 | SLAM with `slam_toolbox` for building a map |
+| 6 | `patrol` — a `NavigateToPose` action client |
+| 7 | Costmap tuning |
+| 8 | A U-trap world to test controller limits |
+
+## Results
+
+Step 8 builds a world specifically to separate reactive steering from
+planning: a U-shaped trap with the goal behind its closed end.
+
+![Reactive controller trapped in the U](docs/u_trap_reactive.png)
+
+*The path taken by the robot using node `avoid_to_goal`*
+
+`avoid_to_goal` drives in and then circles inside the trap indefinitely. 
+Escaping requires driving away from the goal for several meters, which no purely local rule produces.
+
+Nav2, given the same start and goal, plans a 1.27× detour around the outside and
+arrives at the goal.
+
+![SLAM map of the U-trap world](docs/map_u_trap.png)
+
+*The U-trap world mapped by SLAM. The trap's interior stays unknown because
+the robot only ever drove around it.*
+
+## Debugging
+
+**Smeared SLAM map and aborted navigation goals:**
+`slam_toolbox` warned at startup that `max_laser_range` of 20.0 m exceeded the
+lidar's 3.5 m reach. `inf` returns from scan were raytraced to 20 m and created 
+phantom obstacles. The phantom obstacles reached Nav2 through the static costmap 
+layer, causing all navigational goals to abort. Setting the range to 3.5 
+resolved the issue.
+
+**Navigation group aborted before accepting any goal:** With
+`set_initial_pose: false`, nothing published the `map → odom` transform. The
+global costmap timed out waiting for it and the lifecycle manager aborted the
+whole navigation group, after which every goal was rejected with "Action
+server is inactive". Publishing a pose afterwards did not recover it, and a
+`ManageLifecycleNodes` RESET/STARTUP left `bt_navigator` marked active without
+a live action server. Setting `set_initial_pose: true`, with the robot's
+actual spawn pose rather than the origin, resolved the issue.
+
+**`odom` and `map` are different frames:** A goal was given in the odom frame,
+which is anchored wherever the robot booted rather than at the world origin,
+placing it outside the arena wall. The reactive controller circled the inside
+of the enclosure chasing an unreachable point, which was initially misread as
+a local minimum. Goals were moved to the `map` frame, and the U-trap world was
+built to demonstrate the local minimum properly.
+
+**Costmap inflation tuned by measurement:** The default `inflation_radius` of
+0.5 m added cost to every gap between pillars, since the gaps are narrower
+than the radius. Path length was measured with the `compute_path_to_pose`
+action, which plans without driving, while sweeping the radius on a live
+stack: 4.44 m at 0.2, 4.70 m at 0.5 and 4.70 m at 1.0 on the same query.
+Values above ~0.5 had no effect because every free cell was already inflated.
+The radius was set to 0.3, shortening paths while keeping three times the
+robot radius of clearance.
+
+**Custom worlds need an enclosure:** The first U-trap world was open. With
+nothing to reflect the lidar in most directions the SLAM map barely grew, and
+Nav2 rejected goals as outside bounds. An enclosure was added to reflect lidar,
+allowing SLAM to create a map.
 
 ## Package: `robot_lab`
 
 | Node | Function |
 |---|---|
-| `drive_square` | Closed-loop square using odometry feedback. |
-| `scan_inspector` | Read-only lidar diagnostics. |
+| `scan_inspector` | Read-only lidar diagnostics: nearest return per sector. |
 | `go_to_goal` | Drives to a point with no obstacle sensing. |
-| `avoid_to_goal` | Drives to a point with obstacle avoidance. |
+| `avoid_to_goal` | Drives to a point with reactive obstacle avoidance. |
 | `patrol` | Sends a waypoint list to Nav2 via the NavigateToPose action. |
 
-`robot_lab/geometry.py` contains shared helper functions.
-`config/` holds parameter files, `maps/` a SLAM-built map of `turtlebot3_world`.
+`robot_lab/geometry.py` holds the shared helpers: `normalize_angle`,
+`yaw_from_quaternion`, `quaternion_from_yaw`, `clamp`, `sector_min`,
+`corridor_min`.
+
+`config/` holds tuned parameter files, `worlds/` the U-trap world, `maps/`
+SLAM-built maps of both worlds.
 
 ## Run
-
-Gazebo diff-drive demo:
-
-```bash
-ros2 launch robot_lab drive_square.launch.py       
-ros2 launch robot_lab drive_square.launch.py robot:=vehicle_green
-```
 
 TurtleBot3:
 
@@ -33,7 +106,7 @@ ros2 run robot_lab scan_inspector
 ros2 run robot_lab avoid_to_goal --ros-args -p goal_x:=2.0 -p goal_y:=0.0
 ```
 
-Nav2, using the prebuilt map:
+Nav2 with a prebuilt map:
 
 ```bash
 ros2 launch turtlebot3_navigation2 navigation2.launch.py use_sim_time:=True \
@@ -52,11 +125,21 @@ ros2 run nav2_map_server map_saver_cli --ros-args -p use_sim_time:=true \
   -p save_map_timeout:=20.0 -f ~/gz_robot_ws/src/robot_lab/maps/my_map
 ```
 
-Nav2 and SLAM each run alongside a TurtleBot3 world launched as above.
+The U-trap world:
 
-## Notes
+```bash
+ros2 launch robot_lab u_trap.launch.py
+ros2 run robot_lab avoid_to_goal --ros-args -p use_sim_time:=true \
+  -p goal_x:=5.5 -p goal_y:=0.0          # never arrives
+ros2 launch turtlebot3_navigation2 navigation2.launch.py use_sim_time:=True \
+  map:=$HOME/gz_robot_ws/src/robot_lab/maps/u_trap.yaml \
+  params_file:=$HOME/gz_robot_ws/src/robot_lab/config/nav2_utrap.yaml
+ros2 run robot_lab patrol --ros-args -p use_sim_time:=true -p waypoints:="[5.5, 0.0]"
+```
 
-- TurtleBot3's `/cmd_vel` is `geometry_msgs/TwistStamped`, not `Twist`; the
-  diff-drive demo robot wants plain `Twist`. Nodes here take a `stamped`
-  parameter.
-- `/scan` is published best-effort, so subscribe with `qos_profile_sensor_data`.
+## Environment
+
+WSL2 + WSLg. `export GALLIUM_DRIVER=d3d12` is required in `~/.bashrc`;
+without it Mesa falls back to software rendering and Gazebo crawls. Verify
+with `glxinfo -B | grep "OpenGL renderer"`, which should name the GPU rather
+than `llvmpipe`.

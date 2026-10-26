@@ -1,0 +1,100 @@
+<?xml version="1.0"?>
+<!-- Three walls forming a U that opens toward -x. A robot at (-2, 0) driving
+     at a goal behind the closed end must leave the trap before it can make
+     progress, which purely reactive navigation cannot work out. -->
+<sdf version="1.8">
+  <world name="u_trap">
+    <physics type="ode">
+      <real_time_update_rate>1000.0</real_time_update_rate>
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1</real_time_factor>
+    </physics>
+    <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands"/>
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+    <plugin filename="gz-sim-imu-system" name="gz::sim::systems::Imu"/>
+
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Ground Plane</uri>
+    </include>
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Sun</uri>
+    </include>
+
+    <model name="u_trap">
+      <static>1</static>
+      <link name="walls">
+        <!-- back wall, closing the U at x = 2.0 -->
+        <collision name="back_c">
+          <pose>2.0 0 0.25 0 0 0</pose>
+          <geometry><box><size>0.1 3.0 0.5</size></box></geometry>
+        </collision>
+        <visual name="back_v">
+          <pose>2.0 0 0.25 0 0 0</pose>
+          <geometry><box><size>0.1 3.0 0.5</size></box></geometry>
+        </visual>
+        <!-- side walls, running from the mouth at x = 0 back to x = 2 -->
+        <collision name="left_c">
+          <pose>1.0 1.5 0.25 0 0 0</pose>
+          <geometry><box><size>2.0 0.1 0.5</size></box></geometry>
+        </collision>
+        <visual name="left_v">
+          <pose>1.0 1.5 0.25 0 0 0</pose>
+          <geometry><box><size>2.0 0.1 0.5</size></box></geometry>
+        </visual>
+        <collision name="right_c">
+          <pose>1.0 -1.5 0.25 0 0 0</pose>
+          <geometry><box><size>2.0 0.1 0.5</size></box></geometry>
+        </collision>
+        <visual name="right_v">
+          <pose>1.0 -1.5 0.25 0 0 0</pose>
+          <geometry><box><size>2.0 0.1 0.5</size></box></geometry>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Outer enclosure. Without it the lidar gets no returns in open
+         directions, the SLAM map barely grows, and Nav2 rejects goals as
+         "outside bounds". -->
+    <model name="boundary">
+      <static>1</static>
+      <link name="walls">
+        <collision name="west_c">
+          <pose>-4.0 0 0.25 0 0 0</pose>
+          <geometry><box><size>0.1 7.0 0.5</size></box></geometry>
+        </collision>
+        <visual name="west_v">
+          <pose>-4.0 0 0.25 0 0 0</pose>
+          <geometry><box><size>0.1 7.0 0.5</size></box></geometry>
+        </visual>
+        <collision name="east_c">
+          <pose>6.0 0 0.25 0 0 0</pose>
+          <geometry><box><size>0.1 7.0 0.5</size></box></geometry>
+        </collision>
+        <visual name="east_v">
+          <pose>6.0 0 0.25 0 0 0</pose>
+          <geometry><box><size>0.1 7.0 0.5</size></box></geometry>
+        </visual>
+        <collision name="south_c">
+          <pose>1.0 -3.5 0.25 0 0 0</pose>
+          <geometry><box><size>10.0 0.1 0.5</size></box></geometry>
+        </collision>
+        <visual name="south_v">
+          <pose>1.0 -3.5 0.25 0 0 0</pose>
+          <geometry><box><size>10.0 0.1 0.5</size></box></geometry>
+        </visual>
+        <collision name="north_c">
+          <pose>1.0 3.5 0.25 0 0 0</pose>
+          <geometry><box><size>10.0 0.1 0.5</size></box></geometry>
+        </collision>
+        <visual name="north_v">
+          <pose>1.0 3.5 0.25 0 0 0</pose>
+          <geometry><box><size>10.0 0.1 0.5</size></box></geometry>
+        </visual>
+      </link>
+    </model>
+  </world>
+</sdf>
